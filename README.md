@@ -254,7 +254,7 @@ Final score ∈ [0,1]:
 ### Run locally
 bash
 # Clone and install
-git clone <your-repo-url>
+git clone https://github.com/hemakshiyeole01/Bureaucratic-Maze-Navigator
 cd bureaucratic-maze
 pip install -r requirements.txt
 
@@ -295,5 +295,5 @@ bash
 openenv validate
 
 # Run pre-submission check
-./validate-submission.sh https://your-space.hf.space
+./validate-submission.sh https://Hemakshiy-bureaucratic-maze.hf.space
 ---
