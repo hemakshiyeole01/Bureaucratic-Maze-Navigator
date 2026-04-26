@@ -11,6 +11,7 @@ setup(
         "httpx>=0.27.0",
         "openai>=1.30.1",
         "pyyaml>=6.0.1",
+        "openenv-core>=0.2.0",
     ],
     python_requires=">=3.10",
 )
