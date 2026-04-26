@@ -57,24 +57,22 @@ if not HF_TOKEN:
 client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
 # ── Task configuration ─────────────────────────────────────────────────────
-TASKS = ["task_1", "task_2", "task_3", "task_4", "task_5", "task_6"]
+TASKS = ["task_1", "task_2", "task_3", "task_4", "task_5"]
 
 MAX_STEPS_PER_TASK: Dict[str, int] = {
     "task_1": 15,
     "task_2": 20,
     "task_3": 28,
     "task_4": 35,
-    "task_5": 40,
-    "task_6": 50,
+    "task_5": 40
 }
 
 # ── Plans ──────────────────────────────────────────────────────────────────
-# skip_after_wait: True  → this speak TRIGGERS the D5 wait.
-#                          The runner executes it once, records plan_idx,
-#                          then when the wait drains it advances plan_idx
-#                          past this step WITHOUT re-executing the speak.
-#                          This prevents the -0.05 penalty from a redundant
-#                          post-wait speak and avoids triggering a second wait.
+# D5 (Inspection / Medical) behaviour:
+#   Arriving at D5 via go_to immediately puts the agent into a wait state.
+#   The wait drains automatically. After it ends, the runner moves to the
+#   next go_to step. No speak is needed or useful at D5 — the arrival
+#   itself triggers and completes the inspection/medical process.
 
 TASK_PLANS: Dict[str, List[Dict[str, Any]]] = {
 
@@ -113,6 +111,8 @@ TASK_PLANS: Dict[str, List[Dict[str, Any]]] = {
     ],
 
     # ── Task 3: Driving licence renewal ───────────────────────────────────
+    # Correct solution path from tasks.py: D1→D2→D8→D2→D5→D6→D10
+    # Key: must return to D2 after D8 (portal fix) before D5
     "task_3": [
         {"dept": "D1",  "action_type": "speak",
          "hint": "I need to renew my expired driving licence."},
@@ -122,19 +122,23 @@ TASK_PLANS: Dict[str, List[Dict[str, Any]]] = {
         {"dept": "D2",  "action_type": "go_to",  "department_id": "D8"},
         {"dept": "D8",  "action_type": "speak",
          "hint": "I need help with a system error. The online form is not accepting my date of birth. Please fix this portal issue and provide a portal acknowledgment."},
-        {"dept": "D8",  "action_type": "go_to",  "department_id": "D5"},
-        {"dept": "D5",  "action_type": "speak",
-         "hint": "I need a medical fitness certificate for my driving licence renewal.",
-         "skip_after_wait": True},
+        # Must return to D2 after D8 portal fix — solution path requires it
+        {"dept": "D8",  "action_type": "go_to",  "department_id": "D2"},
+        {"dept": "D2",  "action_type": "speak",
+         "hint": "I have the Portal Acknowledgment from D8. The portal error is fixed. Please process my driving licence renewal application."},
+        {"dept": "D2",  "action_type": "go_to",  "department_id": "D5"},
+        # No speak at D5 — arrival triggers medical/inspection wait, issues medical_fitness_certificate
         {"dept": "D5",  "action_type": "go_to",  "department_id": "D6"},
         {"dept": "D6",  "action_type": "speak",
-         "hint": "I have my expired driving licence, portal acknowledgment, and medical fitness certificate. Please approve my driving licence renewal."},
+         "hint": "I have my expired driving licence, Form LLD, Portal Acknowledgment, and Medical Fitness Certificate. Please approve my driving licence renewal."},
         {"dept": "D6",  "action_type": "go_to",  "department_id": "D10"},
         {"dept": "D10", "action_type": "speak",
-         "hint": "I have the portal acknowledgment, medical fitness certificate, and senior officer approval. Please issue my renewed driving licence."},
+         "hint": "I have the expired driving licence, Portal Acknowledgment, Medical Fitness Certificate, and senior officer approval. Please issue my renewed driving licence."},
     ],
 
     # ── Task 4: Passport renewal with address update ───────────────────────
+    # Correct solution path from tasks.py: D1→D4→D2→D9→D6→D5→D2→D10
+    # Key: second D2 visit required after D6+D5, before D10
     "task_4": [
         {"dept": "D1",  "action_type": "speak",
          "hint": "I need to renew my passport and update my address in the records."},
@@ -149,66 +153,44 @@ TASK_PLANS: Dict[str, List[Dict[str, Any]]] = {
         {"dept": "D9",  "action_type": "go_to",  "department_id": "D6"},
         {"dept": "D6",  "action_type": "speak",
          "hint": "I need Gazetted Officer attestation on all my documents for the passport renewal. I have the notarized address proof here."},
-        {"dept": "D6",  "action_type": "go_to",  "department_id": "D10"},
+        {"dept": "D6",  "action_type": "go_to",  "department_id": "D5"},
+        # D5 police verification wait — no speak needed
+        {"dept": "D5",  "action_type": "go_to",  "department_id": "D2"},
+        {"dept": "D2",  "action_type": "speak",
+         "hint": "I have the Notarized Address Proof, Gazetted Officer Attestation, and Police Verification Clearance. Please process my passport renewal application."},
+        {"dept": "D2",  "action_type": "go_to",  "department_id": "D10"},
         {"dept": "D10", "action_type": "speak",
-         "hint": "I have the notarized address proof and Gazetted Officer attestation on all my documents. Please process my passport renewal with the updated address."},
+         "hint": "I have the Passport Original, Notarized Address Proof, Gazetted Officer Attestation, and Police Verification Clearance. Please issue my renewed passport with the updated address."},
     ],
 
     # ── Task 5: Property tax dispute ───────────────────────────────────────
+    # Correct solution path from tasks.py: D1→D3→D7→D4→D5→D6→D3→D10
+    # Critical: must return to D3 after D6 before going to D10
     "task_5": [
         {"dept": "D1",  "action_type": "speak",
-         "hint": "I need to dispute an inflated property tax bill. The amount charged is much higher than my property classification warrants."},
+         "hint": "I need to dispute an inflated property tax bill. My residential property is being wrongly taxed at commercial rates — 3 times the correct amount."},
         {"dept": "D1",  "action_type": "go_to",  "department_id": "D3"},
         {"dept": "D3",  "action_type": "speak",
-         "hint": "I have the Tax Bill Original with me. Here it is. I believe there is a billing discrepancy in my property tax assessment."},
+         "hint": "I have the Tax Bill Original. My residential property has been charged at commercial rates incorrectly. I need this billing error corrected."},
         {"dept": "D3",  "action_type": "go_to",  "department_id": "D7"},
         {"dept": "D7",  "action_type": "speak",
-         "hint": "I have the Tax Bill Original and property documents. I wish to file a formal grievance against the inflated property tax bill."},
+         "hint": "I have the Tax Bill Original and Property Documents. I wish to file a formal grievance against this inflated tax bill and obtain a grievance reference number."},
         {"dept": "D7",  "action_type": "go_to",  "department_id": "D4"},
         {"dept": "D4",  "action_type": "speak",
-         "hint": "Could you clarify in simpler terms what revenue subdivision means? I need a certified property records extract to support my tax dispute."},
+         "hint": "Could you clarify what revenue subdivision and legacy classification mean in simple terms? I need a certified Records Extract to prove my property is residential."},
         {"dept": "D4",  "action_type": "go_to",  "department_id": "D5"},
-        {"dept": "D5",  "action_type": "speak",
-         "hint": "I need a site inspection to verify the classification of my property. I have filed a formal grievance and have the records extract.",
-         "skip_after_wait": True},
+        # No speak at D5 — arrival triggers inspection wait, issues inspection_report automatically.
         {"dept": "D5",  "action_type": "go_to",  "department_id": "D6"},
         {"dept": "D6",  "action_type": "speak",
-         "hint": "I have the grievance reference, records extract, and site inspection clearance. I need a reclassification order to resolve my property tax dispute."},
-        {"dept": "D6",  "action_type": "go_to",  "department_id": "D10"},
-        {"dept": "D10", "action_type": "speak",
-         "hint": "I have the Tax Bill Original, Certified Property Records Extract, "
-                 "Grievance Reference Number, Site Inspection Clearance, and Reclassification Order. "
-                 "Please process my property tax correction and issue the revised bill."},
-    ],
-
-    # ── Task 6: Building permit for second floor ───────────────────────────
-    "task_6": [
-        {"dept": "D1",  "action_type": "speak",
-         "hint": "I need a permit to add a second floor to my residential building. My survey number is 12345."},
-        {"dept": "D1",  "action_type": "go_to",       "department_id": "D4"},
-        {"dept": "D4",  "action_type": "speak",
-         "hint": "My survey number is 12345. I need a records extract for a second floor building permit application."},
-        {"dept": "D4",  "action_type": "go_to",       "department_id": "D6"},
-        {"dept": "D6",  "action_type": "speak",
-         "hint": "I need senior officer approval for a second floor building permit. "
-                 "I have obtained the structural engineer certificate from a licensed private engineer. Here it is."},
-        {"dept": "D6",  "action_type": "go_to",       "department_id": "D5"},
-        {"dept": "D5",  "action_type": "speak",
-         "hint": "I need a site inspection for the second floor building permit. "
-                 "I have the approved plan and senior officer approval.",
-         "skip_after_wait": True},
-        {"dept": "D5",  "action_type": "go_to",       "department_id": "D9"},
-        {"dept": "D9",  "action_type": "speak",
-         "hint": "I need a NOC affidavit for the second floor building permit application."},
-        {"dept": "D9",  "action_type": "go_to",       "department_id": "D3"},
+         "hint": "I have the Grievance Reference, Records Extract, and Inspection Report. I need a Reclassification Order to correct my property tax from commercial to residential rate."},
+        # Solution path requires returning to D3 after D6 before D10
+        {"dept": "D6",  "action_type": "go_to",  "department_id": "D3"},
         {"dept": "D3",  "action_type": "speak",
-         "hint": "I have the challan copy here. I need to pay the permit fee for the second floor building permit."},
-        {"dept": "D3",  "action_type": "go_to",       "department_id": "D10"},
+         "hint": "I have the Reclassification Order from the senior officer. Please update your records and process my revised tax bill at the correct residential rate."},
+        {"dept": "D3",  "action_type": "go_to",  "department_id": "D10"},
         {"dept": "D10", "action_type": "speak",
-         "hint": "I have the Records Extract, Structural Engineer Certificate, Senior Officer Approval, "
-                 "First Inspection Clearance, NOC Affidavit, and Permit Fee Receipt. "
-                 "Please issue the building permit for adding a second floor to my property at survey number 12345."},
-    ],
+         "hint": "I have the Tax Bill Original, Property Documents, Grievance Reference, Records Extract, Inspection Report, and Reclassification Order. Please issue the revised residential-rate property tax bill."},
+    ]
 }
 
 # ── Logging ────────────────────────────────────────────────────────────────
@@ -414,14 +396,12 @@ def run_task(env_client: EnvClient, task_id: str) -> dict:
                         action = {"action_type": "go_to", "department_id": target}
                     else:
                         hint = ps.get("hint", "Please help me with my application.")
+                        # Include the latest clerk response (may be check_requirements result)
                         text = get_speak_text(hint, obs, history)
                         action = {"action_type": "speak", "text": text}
 
                         # Record this plan step as the wait trigger so we can
                         # skip it after the wait drains.
-                        if ps.get("skip_after_wait"):
-                            wait_triggered_plan_idx = plan_idx
-
                         if target == "D10":
                             d10_speaks += 1
                         plan_idx += 1
@@ -438,6 +418,15 @@ def run_task(env_client: EnvClient, task_id: str) -> dict:
                             "form_name":   ps["form_name"],
                             "form_fields": {},
                         }
+                        plan_idx += 1
+
+                elif atype == "check_requirements":
+                    target = ps.get("dept", current_dept)
+                    if current_dept != target and target != current_dept:
+                        action = {"action_type": "go_to", "department_id": target}
+                    else:
+                        action   = {"action_type": "check_requirements",
+                                    "query": ps.get("query", "What do I need to complete this task?")}
                         plan_idx += 1
 
                 else:
