@@ -1,10 +1,6 @@
 ---
 title: Bureaucratic Maze Navigator
-emoji: 🏛️
-colorFrom: orange
-colorTo: red
 sdk: docker
-pinned: true
 license: mit
 tags:
   - openenv
@@ -255,8 +251,49 @@ Final score ∈ [0,1]:
 ## 🚀 Setup
 
 ```bash
-git clone <repo>
+### Run locally
+bash
+# Clone and install
+git clone <your-repo-url>
 cd bureaucratic-maze
 pip install -r requirements.txt
 
-python -m uvicorn bureaucratic_maze.server:app --port 7860
+# Start the server
+python -m uvicorn bureaucratic_maze.server:app --host 0.0.0.0 --port 7860
+
+# In another terminal — run inference
+export HF_TOKEN=your_token_here
+export ENV_BASE_URL=http://localhost:7860
+python inference.py
+### Run with Docker
+bash
+docker build -t bureaucratic-maze .
+docker run -p 7860:7860 bureaucratic-maze
+### API Quick Reference
+bash
+# Health check
+curl http://localhost:7860/health
+
+# List tasks
+curl http://localhost:7860/tasks
+
+# Start episode
+curl -X POST http://localhost:7860/reset \
+  -H "Content-Type: application/json" \
+  -d '{"task_id": "task_1"}'
+
+# Take a step
+curl -X POST http://localhost:7860/step \
+  -H "Content-Type: application/json" \
+  -d '{"action": {"action_type": "speak", "text": "I need help with a wrong charge"}}'
+
+# Get state
+curl -X POST http://localhost:7860/state
+--- ## 🧪 Validation
+bash
+# Validate OpenEnv spec
+openenv validate
+
+# Run pre-submission check
+./validate-submission.sh https://your-space.hf.space
+---
