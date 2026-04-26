@@ -1,0 +1,122 @@
+name: bureaucratic-maze
+version: 1.0.0
+description: >
+  An OpenEnv-compliant environment where an AI agent plays a citizen
+  navigating Indian government bureaucracy to accomplish real civic goals.
+  The agent must find the correct path through departments, wrong transfers,
+  missing forms, contradictory rules, and unhelpful clerks.
+
+author: hackathon-team
+tags:
+  - openenv
+  - real-world
+  - bureaucracy
+  - civic
+  - india
+  - language
+  - multi-step
+  - reasoning
+
+tasks:
+  - id: task_1
+    name: wrong_charge_refund
+    difficulty: easy
+    max_steps: 15
+    description: Get a wrongly charged ₹500 transaction reversed
+
+  - id: task_2
+    name: ration_card_name_correction
+    difficulty: easy_medium
+    max_steps: 20
+    description: Fix a spelling error on a ration card
+
+  - id: task_3
+    name: driving_license_renewal
+    difficulty: medium
+    max_steps: 28
+    description: Renew an expired driving license with portal error
+
+  - id: task_4
+    name: passport_renewal_address_change
+    difficulty: medium_hard
+    max_steps: 35
+    description: Renew passport and update address simultaneously
+
+  - id: task_5
+    name: property_tax_dispute
+    difficulty: hard
+    max_steps: 40
+    description: Dispute an inflated property tax bill
+
+  - id: task_6
+    name: building_renovation_permit
+    difficulty: very_hard
+    max_steps: 50
+    description: Get a building permit for home renovation
+
+action_space:
+  type: structured
+  fields:
+    - name: action_type
+      type: enum
+      values: [speak, go_to, submit_form, request_transfer, check_requirements, wait]
+    - name: text
+      type: string
+      optional: true
+    - name: department_id
+      type: string
+      optional: true
+    - name: form_name
+      type: string
+      optional: true
+
+observation_space:
+  type: structured
+  fields:
+    - name: current_department_id
+      type: string
+    - name: current_department_name
+      type: string
+    - name: clerk_response
+      type: string
+    - name: available_actions
+      type: list[string]
+    - name: available_departments
+      type: list[object]
+    - name: documents_held
+      type: list[string]
+    - name: goal_description
+      type: string
+    - name: steps_used
+      type: integer
+    - name: steps_remaining
+      type: integer
+    - name: is_waiting
+      type: boolean
+    - name: goal_achieved
+      type: boolean
+
+reward:
+  type: dense
+  range: [-0.5, 0.8]
+  components:
+    - correct_department_visited: 0.10
+    - correct_action_taken: 0.05
+    - document_obtained: 0.15
+    - obstacle_resolved: 0.08
+    - goal_completed: 0.50
+    - wrong_department_penalty: -0.02
+    - circular_loop_penalty: -0.10
+    - step_timeout_penalty: -0.01
+    - invalid_action_penalty: -0.03
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: POST /state
+  health: GET /health
+
+server:
+  framework: fastapi
+  port: 7860
+  dockerfile: Dockerfile
